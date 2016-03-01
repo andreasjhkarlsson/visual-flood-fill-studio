@@ -1,0 +1,45 @@
+﻿
+body {
+    font-family: Georgia;
+}
+
+#page-header
+{
+    margin-top: 14px;
+    font-size: 24px;
+}
+
+.settings {
+    display: inline-block;
+    margin-left: 40px;
+}
+
+.pixel-box {
+    border: solid;
+    border-width: 0 0 1px 1px;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.setting-header {
+    font-size: 16px;
+}
+
+.pixel-box tr {
+    cursor: pointer;
+}
+
+.pixel-box td {
+    height: 7px;
+    width: 7px;
+    padding: 0px;
+    margin: 0px;
+    border-width: 1px 1px 0 0;
+    border-style: solid;
+    cursor: pointer;
+}
+
+td.filled  {
+    background-color: palevioletred;
+
+}
