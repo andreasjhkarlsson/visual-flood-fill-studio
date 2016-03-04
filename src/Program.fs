@@ -10,7 +10,9 @@ open FunScript.TypeScript
 [<ReflectedDefinition>]
 module ClientApplication =
 
-    type Mode = Fill | Erase | Flood
+    type FloodFillMode = Stack | Queue
+
+    type Action = Set | Clear | FloodFill of FloodFillMode
 
     type Pixel = Filled | Cleared
 
@@ -19,14 +21,18 @@ module ClientApplication =
 
         abstract Width: int
         abstract Height: int
+        abstract Reset: unit -> unit
 
     type Recorder(source: IPixelBox) =
-        let mutable pixels =
+
+        let sourceCopy () = 
             [0..(source.Width-1)] |> List.collect (fun x ->
                 [0..(source.Height-1)] |> List.map (fun y -> x,y)
             )
             |> List.map (fun (x,y) -> ((x,y), source.[x,y]))
-            |> Map.ofList
+            |> Map.ofList   
+
+        let mutable pixels = sourceCopy ()
 
         let mutable history: ((int*int)*Pixel) list = []
 
@@ -51,6 +57,9 @@ module ClientApplication =
                 and set (x,y) state =
                     pixels <- pixels |> Map.add (x,y) state
                     history <- ((x,y), state) :: history
+            member this.Reset () =
+                pixels <- sourceCopy ()
+                history <- []
 
     type HtmlPixelBox(element: Element) =
 
@@ -93,6 +102,8 @@ module ClientApplication =
                     | Cleared when currentlyFilled ->
                         td.removeClass "filled" |> ignore
                     | _ -> () // State is already correct
+            member this.Reset () =
+                ``$``.Invoke("td",element).removeClass "filled" |> ignore
 
     let main () = 
         let ``$`` = Globals.Dollar
@@ -107,29 +118,45 @@ module ClientApplication =
                 (select "#mode-select option:selected")._val ()
                 |> unbox<string>
                 |> function
-                    | "fill" -> Fill
-                    | "erase" -> Erase
-                    | "flood" -> Flood
+                    | "set" -> Set
+                    | "clear" -> Clear
+                    | "flood_stack" -> FloodFill Stack
+                    | "flood_queue" -> FloodFill Queue
                     |_ -> failwith "Not implemented"
-            
-            let neighbours (pixelbox: IPixelBox) (x,y) =
-                [(-1,0); (1,0); (0,-1); (0,1)]
-                |> List.map (fun (dx,dy) -> x+dx,y+dy)
-                |> List.filter (fun (x,y) -> x >= 0 && x < pixelbox.Width && y >= 0 && y < pixelbox.Height)
 
-            let rec floodfill (pixelbox: IPixelBox) (x,y)=
-                if pixelbox.[x,y] = Cleared then
-                    do pixelbox.[x,y] <- Filled
-                    neighbours pixelbox (x,y) |> List.iter (floodfill pixelbox)
+
+
+            let floodfill (pixelbox: IPixelBox) mode point =
+                let neighbours (x,y) =
+                    [(-1,0); (1,0); (0,-1); (0,1)]
+                    |> List.map (fun (dx,dy) -> x+dx,y+dy)
+                    |> List.filter (fun (x,y) -> x >= 0 && x < pixelbox.Width && y >= 0 && y < pixelbox.Height)
+
+                let rec floodfill pixels =
+                    match pixels with
+                    | (x,y) :: rest when pixelbox.[x,y] = Cleared ->
+                        do pixelbox.[x,y] <- Filled
+
+                        match mode with
+                        | Stack ->
+                            (neighbours (x,y)) @ rest
+                        | Queue ->
+                            rest @ (neighbours (x,y))
+                        |> floodfill
+                    | _::rest ->
+                        floodfill rest
+                    | [] ->
+                        ()
+                floodfill [point]
                     
             let pixelActivated (x, y) =
                 let pixelbox = screen :> IPixelBox
                 match mode () with
-                | Fill -> do pixelbox.[x,y] <- Filled
-                | Erase -> do pixelbox.[x,y] <- Cleared
-                | Flood ->
+                | Set -> do pixelbox.[x,y] <- Filled
+                | Clear -> do pixelbox.[x,y] <- Cleared
+                | FloodFill mode ->
                     let recorder = Recorder(pixelbox)
-                    do floodfill (recorder :> IPixelBox) (x,y)
+                    do floodfill (recorder :> IPixelBox) mode (x,y)
                     do recorder.Playback ()
 
             do
@@ -153,6 +180,10 @@ module ClientApplication =
                 ``$``.Invoke(screen.Table).on("mouseup","td",Func<JQueryEventObject,obj array,obj>(fun e _ ->
                     do mouseDown <- false
                     null
+                )) |> ignore
+
+                (select "#clear-all").click (Func<JQueryEventObject,obj> (fun _ ->
+                    (screen :> IPixelBox).Reset () :> obj
                 )) |> ignore
         ))
 

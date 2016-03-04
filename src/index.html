@@ -15,12 +15,15 @@
     <br />
 
     <div class="settings">
-        <p class="setting-header">Mode</p>
+        <p class="setting-header">Tools</p>
         <select id="mode-select">
-            <option value="fill">Fill pixel</option>
-            <option value="erase">Erase pixel</option>
-            <option value="flood">Flood area</option>
+            <option value="set">Set pixel</option>
+            <option value="clear">Clear pixel</option>
+            <option value="flood_stack">Flood area (stack)</option>
+            <option value="flood_queue">Flood area (queue)</option>
         </select>
+        
+        <button id="clear-all">Clear all</button>
     </div>
 
 

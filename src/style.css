@@ -14,6 +14,17 @@ body {
     margin-left: 40px;
 }
 
+#mode-select {
+    display:block;
+    margin: 10px;
+}
+
+#clear-all {
+        
+    display: block;
+    margin: 10px;
+}
+
 .pixel-box {
     border: solid;
     border-width: 0 0 1px 1px;
