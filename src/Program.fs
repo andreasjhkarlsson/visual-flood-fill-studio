@@ -10,7 +10,7 @@ open FunScript.TypeScript
 [<ReflectedDefinition>]
 module ClientApplication =
 
-    type FloodFillMode = Stack | Queue
+    type FloodFillMode = Stack | Queue | Scanline
 
     type Action = Set | Clear | FloodFill of FloodFillMode
 
@@ -18,10 +18,12 @@ module ClientApplication =
 
     type IPixelBox =
         abstract Item: int*int -> Pixel with get, set
-
         abstract Width: int
         abstract Height: int
         abstract Reset: unit -> unit
+        abstract Step: int -> unit
+
+    type History = SetPixel of (int*int)*Pixel | Step of int
 
     type Recorder(source: IPixelBox) =
 
@@ -34,20 +36,24 @@ module ClientApplication =
 
         let mutable pixels = sourceCopy ()
 
-        let mutable history: ((int*int)*Pixel) list = []
+        let mutable history: History list = []
 
-        member this.Playback speed =
+        member this.Playback () =
             
-            let delay (fn: unit -> unit) = Globals.window.setTimeout(unbox<Function> fn,speed) |> ignore
+            let delay (time: int) (fn: unit -> unit) = Globals.window.setTimeout(unbox<Function> fn,time) |> ignore
 
             let rec playback history () =
                 match history with
-                | ((x,y),state)::rest ->
-                    source.[x,y] <- state
-                    playback rest |> delay
+                | head::rest ->
+                    match head with
+                    | SetPixel ((x,y),state) ->
+                        source.[x,y] <- state
+                        playback rest |> delay 0
+                    | Step time ->
+                        playback rest |> delay time
                 | [] -> ()
 
-            do history |> List.rev |> playback |> delay
+            do history |> List.rev |> playback <| ()
 
         interface IPixelBox with
             member this.Width = source.Width
@@ -56,10 +62,12 @@ module ClientApplication =
                 with get (x,y) = pixels |> Map.find (x,y)
                 and set (x,y) state =
                     pixels <- pixels |> Map.add (x,y) state
-                    history <- ((x,y), state) :: history
+                    history <- SetPixel ((x,y), state) :: history
             member this.Reset () =
                 pixels <- sourceCopy ()
                 history <- []
+            member this.Step delay =
+                history <- Step delay :: history
 
     type HtmlPixelBox(element: Element) =
 
@@ -105,6 +113,8 @@ module ClientApplication =
             member this.Reset () =
                 ``$``.Invoke("td",element).removeClass "filled" |> ignore
 
+            member this.Step _ = ()
+
     let main () = 
         let ``$`` = Globals.Dollar
 
@@ -122,9 +132,10 @@ module ClientApplication =
                     | "clear" -> Clear
                     | "flood_stack" -> FloodFill Stack
                     | "flood_queue" -> FloodFill Queue
+                    | "flood_scanline" -> FloodFill Scanline
                     |_ -> failwith "Not implemented"
 
-
+            
 
             let floodfill (pixelbox: IPixelBox) mode point =
                 let neighbours (x,y) =
@@ -132,22 +143,55 @@ module ClientApplication =
                     |> List.map (fun (dx,dy) -> x+dx,y+dy)
                     |> List.filter (fun (x,y) -> x >= 0 && x < pixelbox.Width && y >= 0 && y < pixelbox.Height)
 
-                let rec floodfill pixels =
-                    match pixels with
-                    | (x,y) :: rest when pixelbox.[x,y] = Cleared ->
-                        do pixelbox.[x,y] <- Filled
+                let neighbourFill useQueue pixels =
 
-                        match mode with
-                        | Stack ->
-                            (neighbours (x,y)) @ rest
-                        | Queue ->
-                            rest @ (neighbours (x,y))
-                        |> floodfill
-                    | _::rest ->
-                        floodfill rest
-                    | [] ->
-                        ()
-                floodfill [point]
+                    let mutable pixels: (int*int) list = pixels
+
+                    while pixels.Length > 0 do
+                        pixels <-
+                            match pixels with
+                            | (x,y) :: rest when pixelbox.[x,y] = Cleared ->
+                                do pixelbox.[x,y] <- Filled
+                                if not useQueue then
+                                    (neighbours (x,y)) @ rest
+                                else
+                                    rest @ (neighbours (x,y))
+                            | _::rest -> rest
+                            | [] -> []
+
+
+                let rec scanlineFill (x,y) =
+                    let rec fillLine op x =
+                        if x >= 0 && x < pixelbox.Width && pixelbox.[x,y] = Cleared then
+                            pixelbox.[x,y] <- Filled
+                            fillLine op (op x)
+                        else
+                            x
+                    let x1 = (fillLine (fun x -> x - 1) (x-1)) + 1
+                    do pixelbox.Step 50
+                    let x2 = (fillLine (fun x -> x + 1) x) - 1
+                    do pixelbox.Step 50
+
+                    let findSeeds y =
+                        [x1..x2]
+                        |> List.map (fun x -> x, pixelbox.[x,y]) 
+                        |> List.fold (fun (last,folded) (x,pixel) ->
+                            if pixel = Cleared && last = Filled then pixel, x :: folded
+                            else pixel, folded
+                        ) (Filled,[])
+                        |> snd
+                        |> List.map (fun x -> x,y)
+                    let above = if (y-1) >= 0 then findSeeds (y-1) else []
+                    let below = if (y+1) < pixelbox.Height then findSeeds (y+1) else []
+                    above @ below |> List.iter scanlineFill
+                            
+
+
+                match mode with
+                | Stack -> neighbourFill false [point]
+                | Queue -> neighbourFill true [point]
+                | Scanline -> scanlineFill point
+                  
                     
             let pixelActivated (x, y) =
                 let pixelbox = screen :> IPixelBox
