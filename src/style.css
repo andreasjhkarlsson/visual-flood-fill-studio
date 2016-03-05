@@ -1,22 +1,40 @@
 ﻿
 body {
     font-family: Georgia;
+    color: white;
+    background-color: #353535;
 }
+
+a, a:hover, a:active, a:visited { color: white; }
 
 #page-header
 {
+    display: inline-block;
     margin-top: 14px;
     font-size: 24px;
+    margin-bottom: 0px;
 }
 
+
+#sidebar {
+    display:inline-block;
+    vertical-align:top;
+    max-width: 250px;
+    padding: 15px;
+
+}
 .settings {
     display: inline-block;
-    margin-left: 40px;
+
 }
 
 #mode-select {
     display:block;
     margin: 10px;
+}
+
+#description {
+    font-size: 0.7em;
 }
 
 #clear-all {
@@ -26,13 +44,17 @@ body {
 }
 
 .pixel-box {
+    margin-top: 30px;
+    vertical-align:top;
     border: solid;
     border-width: 0 0 1px 1px;
     cursor: pointer;
     display: inline-block;
+    color: #353535;
+    background-color: white;
 }
 
-.setting-header {
+.sub-header {
     font-size: 16px;
 }
 

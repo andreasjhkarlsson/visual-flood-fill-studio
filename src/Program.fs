@@ -135,8 +135,6 @@ module ClientApplication =
                     | "flood_scanline" -> FloodFill Scanline
                     |_ -> failwith "Not implemented"
 
-            
-
             let floodfill (pixelbox: IPixelBox) mode point =
                 let neighbours (x,y) =
                     [(-1,0); (1,0); (0,-1); (0,1)]
@@ -158,7 +156,6 @@ module ClientApplication =
                                     rest @ (neighbours (x,y))
                             | _::rest -> rest
                             | [] -> []
-
 
                 let rec scanlineFill (x,y) =
                     let rec fillLine op x =
@@ -185,7 +182,6 @@ module ClientApplication =
                     let below = if (y+1) < pixelbox.Height then findSeeds (y+1) else []
                     above @ below |> List.iter scanlineFill
                             
-
 
                 match mode with
                 | Stack -> neighbourFill false [point]

@@ -7,15 +7,23 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
     <script src="app.js"></script>
 </head>
-<body>
-    <p id="page-header">Floodfill!</p>
+<body ondragstart="return false;" ondrop="return false;">
 
-    <table class="pixel-box" id="main-pixel-box" cellspacing="0" data-width="64" data-height="64">
-    </table>
-    <br />
 
-    <div class="settings">
-        <p class="setting-header">Tools</p>
+    <div id="sidebar">
+        <p id="page-header">FLOOD FILL!</p>
+        <p id="description">
+            This is a tool to visualize how different flood fill algorithms work.
+            <br /><br />
+            Flood fill algorithms, more commonly known as the "paint bucket" tool in software such as mspaint and adobe photoshop are a family of algorithms where
+            the program finds all adjacent pixels of the same color and fills them in. There exists several solutions to the problem which all have different characteristics in terms of memory, speed and complexity.
+            <br /><br />
+            Select a tool in the select box below to draw and fill custom shapes and watch the magic. You can also choose from premade patterns at the bottom of the page.
+            <br /><br />
+            You can find entire source code along with documentation on <a href="https://github.com/rotmoset/visual-flood-fill-studio">github</a>.
+        </p>
+
+        <p class="sub-header">Tools</p>
         <select id="mode-select">
             <option value="set">Set pixel</option>
             <option value="clear">Clear pixel</option>
@@ -23,9 +31,14 @@
             <option value="flood_queue">Flood area (queue)</option>
             <option value="flood_scanline">Flood area (scanline)</option>
         </select>
-        
-        <button id="clear-all">Clear all</button>
+
+        <button id="clear-all">Clear all pixels</button>
     </div>
+    <table class="pixel-box" id="main-pixel-box" cellspacing="0" data-width="64" data-height="64"></table>
+
+
+
+
 
 
 </body>
