@@ -16,14 +16,15 @@ module ClientApplication =
 
     type Pixel = Filled | Cleared
 
+    type History = SetPixel of (int*int)*Pixel | Step of int
+
     type IPixelBox =
         abstract Item: int*int -> Pixel with get, set
         abstract Width: int
         abstract Height: int
         abstract Reset: unit -> unit
         abstract Step: int -> unit
-
-    type History = SetPixel of (int*int)*Pixel | Step of int
+        abstract CopyTo: IPixelBox -> unit
 
     type Recorder(source: IPixelBox) =
 
@@ -38,7 +39,7 @@ module ClientApplication =
 
         let mutable history: History list = []
 
-        member this.Playback () =
+        let playback (destination: IPixelBox) =
             
             let delay (time: int) (fn: unit -> unit) = Globals.window.setTimeout(unbox<Function> fn,time) |> ignore
 
@@ -47,7 +48,7 @@ module ClientApplication =
                 | head::rest ->
                     match head with
                     | SetPixel ((x,y),state) ->
-                        source.[x,y] <- state
+                        destination.[x,y] <- state
                         playback rest |> delay 0
                     | Step time ->
                         playback rest |> delay time
@@ -68,6 +69,7 @@ module ClientApplication =
                 history <- []
             member this.Step delay =
                 history <- Step delay :: history
+            member this.CopyTo dest = do playback dest
 
     type HtmlPixelBox(element: Element) =
 
@@ -78,6 +80,8 @@ module ClientApplication =
 
         let td x y =
             ``$``.Invoke("tr",element).eq(float <| y).find("td").eq(float <| x)
+
+        let readPixel (x,y) = if (td x y).hasClass "filled" then Filled else Cleared
 
         do
             for y in {1..height} do
@@ -95,12 +99,13 @@ module ClientApplication =
             let element = ``$``.Invoke(element)
             element.data "x" |> unbox<int>, element.data "y" |> unbox<int>
 
+
         interface IPixelBox with
             member this.Width = width
             member this.Height = height
 
             member this.Item
-                with get (x,y) = if (td x y).hasClass "filled" then Filled else Cleared
+                with get (x,y) = readPixel (x,y)
                 and set (x,y) state =
                     let td = td x y
                     let currentlyFilled = td.hasClass "filled"
@@ -115,8 +120,16 @@ module ClientApplication =
 
             member this.Step _ = ()
 
-    let main () = 
+            member this.CopyTo destination =
+                for x = 0 to (width-1) do
+                    for y = 0 to (height-1) do
+                        destination.[x,y] <- readPixel (x,y)
+
+    let main (samples: string) = 
         let ``$`` = Globals.Dollar
+
+
+        let samples = samples.Split('|')
 
         let select (selector: string) = ``$``.Invoke selector
 
@@ -181,23 +194,21 @@ module ClientApplication =
                     let above = if (y-1) >= 0 then findSeeds (y-1) else []
                     let below = if (y+1) < pixelbox.Height then findSeeds (y+1) else []
                     above @ below |> List.iter scanlineFill
-                            
 
                 match mode with
                 | Stack -> neighbourFill false [point]
                 | Queue -> neighbourFill true [point]
                 | Scanline -> scanlineFill point
                   
-                    
             let pixelActivated (x, y) =
                 let pixelbox = screen :> IPixelBox
                 match mode () with
                 | Set -> do pixelbox.[x,y] <- Filled
                 | Clear -> do pixelbox.[x,y] <- Cleared
                 | FloodFill mode ->
-                    let recorder = Recorder(pixelbox)
-                    do floodfill (recorder :> IPixelBox) mode (x,y)
-                    do recorder.Playback ()
+                    let recorder = Recorder(pixelbox) :> IPixelBox
+                    do floodfill recorder mode (x,y)
+                    do recorder.CopyTo pixelbox
 
             do
             
@@ -205,29 +216,60 @@ module ClientApplication =
 
                 let targetToCoordinates (target: EventTarget) = screen.CoordinatesFromElement (target :?> Element)
 
-                ``$``.Invoke(screen.Table).on("mousedown","td",Func<JQueryEventObject,obj array,obj>(fun e _ ->
+                let onHandler fn = Func<JQueryEventObject,obj array,obj>(fun e _ -> fn e; null) 
+
+                let clickHandler fn = Func<JQueryEventObject,obj>(fun e -> fn e; null) 
+
+                ``$``.Invoke(screen.Table).on("mousedown","td",onHandler (fun e ->
                     do e.target |> targetToCoordinates |> pixelActivated
                     do mouseDown <- true
-                    null
                 )) |> ignore
 
-                ``$``.Invoke(screen.Table).on("mouseenter","td",Func<JQueryEventObject,obj array,obj>(fun e _ ->
+                ``$``.Invoke(screen.Table).on("mouseenter","td",onHandler (fun e ->
                     if mouseDown then
                         do e.target |> targetToCoordinates |> pixelActivated
-                    null
                 )) |> ignore
 
-                ``$``.Invoke(screen.Table).on("mouseup","td",Func<JQueryEventObject,obj array,obj>(fun e _ ->
+                ``$``.Invoke(screen.Table).on("mouseup","td",onHandler (fun e ->
                     do mouseDown <- false
-                    null
                 )) |> ignore
 
-                (select "#clear-all").click (Func<JQueryEventObject,obj> (fun _ ->
-                    (screen :> IPixelBox).Reset () :> obj
+                (select "#clear-all").click (clickHandler (fun _ ->
+                    do (screen :> IPixelBox).Reset ()
                 )) |> ignore
+
+
+                let initSampleBox (data: string) (element: Element)=
+
+                    let screen = screen :> IPixelBox
+
+                    ``$``.Invoke(element).click (clickHandler (fun _ ->
+                         {0..(screen.Width-1)} |> Seq.iter (fun x ->
+                                {0..(screen.Height-1)} |> Seq.iter (fun y ->
+                                    if data.Substring(x*screen.Width + y,1) = "1" then
+                                        screen.[x,y] <- Filled 
+                                    else screen.[x,y] <- Cleared
+                                )
+                            )
+                    )) |> ignore
+
+
+                samples |> Array.iteri (fun i sample ->
+                    do
+                        select (sprintf "#sample-pattern-%d" i) :?> Element
+                        |> initSampleBox sample
+                )
         ))
 
 do
-    let js = Compiler.Compile(<@ ClientApplication.main () @>, noReturn = true)
+    // Copy all samples as one gigantic string blob to
+    // js as funscript doesn't transate F# data very well.
+    let samples = [Samples.rays
+                   Samples.egypt
+                   Samples.atlas
+                   Samples.cat
+                   Samples.bubbles
+                   Samples.maze] |> String.concat "|"
+    let js = Compiler.Compile(<@ ClientApplication.main samples @>, noReturn = true)
     File.WriteAllText("app.js", js)
     Process.Start("index.html") |> ignore

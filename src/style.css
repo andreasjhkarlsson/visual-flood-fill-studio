@@ -44,7 +44,6 @@ a, a:hover, a:active, a:visited { color: white; }
 }
 
 .pixel-box {
-    margin-top: 30px;
     vertical-align:top;
     border: solid;
     border-width: 0 0 1px 1px;
@@ -52,6 +51,10 @@ a, a:hover, a:active, a:visited { color: white; }
     display: inline-block;
     color: #353535;
     background-color: white;
+}
+
+#main-pixel-box {
+    margin-top: 45px;
 }
 
 .sub-header {
@@ -65,14 +68,19 @@ a, a:hover, a:active, a:visited { color: white; }
 .pixel-box td {
     height: 7px;
     width: 7px;
-    padding: 0px;
-    margin: 0px;
     border-width: 1px 1px 0 0;
     border-style: solid;
     cursor: pointer;
+    padding: 0px;
+    margin: 0px;
+}
+
+.sample-pattern {
+    width: 64px;
+    height: 64px;
+    margin: 4px;
 }
 
 td.filled  {
     background-color: palevioletred;
-
 }
